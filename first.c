@@ -16,6 +16,7 @@ int main(int argc, int *argv[]){
     int N = atoi(argv[1]);
     int data_points = atoi(argv[2]);
 
+
     int side_len = sqrt(data_points);
     int root = sqrt(N);
 
@@ -54,7 +55,7 @@ int main(int argc, int *argv[]){
             if(j==0 && my_rank%(root) != 0){ //Sending Leftwards
                 MPI_Isend(&data[i][j], 1, MPI_INT, my_rank-1, 3, MPI_COMM_WORLD, &request[count++]);
             }            
-            if(j==side_len-1 && my_rank%(root) != (root - 1)){ //Sending Rightwards
+            if(j==side_len-1 && (my_rank%(root) != (root - 1))){ //Sending Rightwards
                 MPI_Isend(&data[i][j], 1, MPI_INT, my_rank+1, 4, MPI_COMM_WORLD, &request[count++]);
             }
         }
@@ -70,24 +71,27 @@ int main(int argc, int *argv[]){
                 MPI_Irecv(&recv_data[side_len][j+1], 1, MPI_INT, my_rank+root, 1, MPI_COMM_WORLD, &request[count++]);
             }
             if(j==0 && my_rank%(root) !=0){ //Recieving from left 
-                MPI_Irecv(&recv_data[i+1][0], 1, MPI_INT, my_rank+1, 4, MPI_COMM_WORLD, &request[count++]);
+                MPI_Irecv(&recv_data[i+1][0], 1, MPI_INT, my_rank-1, 4, MPI_COMM_WORLD, &request[count++]);
             }
-            if(j==side_len-1 && my_rank%(root) != (root-1)){ //Recieving frmo right
-                MPI_Irecv(&recv_data[i+1][side_len], 1, MPI_INT, my_rank-1, 3, MPI_COMM_WORLD, &request[count++]);
+            if(j==side_len-1 && (my_rank%(root) != (root-1))){ //Recieving from right
+                MPI_Irecv(&recv_data[i+1][side_len], 1, MPI_INT, my_rank+1, 3, MPI_COMM_WORLD, &request[count++]);
             }
         }
     }
 
-    ftime = MPI_Wtime();
-    time = ftime - stime;
 
     MPI_Waitall(count, request, status);
+
+
     for(int i=0;i<side_len;i++){
         for(int j=0;j<side_len;j++){
             data[i][j] = (recv_data[i+1][j] + recv_data[i][j+1] + recv_data[i+2][j+1] + recv_data[i+1][j+2])/4; 
         }
     }
 
+    ftime = MPI_Wtime();
+    time = ftime - stime;
+    printf("%lf\n",time);
 
     MPI_Finalize();
     return 0;
