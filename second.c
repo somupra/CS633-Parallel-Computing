@@ -1,7 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
-#include<mpi.h>
+#include "mpi.h"
 
 double stime, ftime, time;
 
@@ -9,9 +9,7 @@ int main(int argc, int *argv[]){
     MPI_Init(NULL,NULL);
     int my_rank, my_size;
     MPI_Comm_size(MPI_COMM_WORLD,&my_size);
-    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-    
-    
+    MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);    
     
     int N = atoi(argv[1]);
     int data_points = atoi(argv[2]);
@@ -45,58 +43,59 @@ int main(int argc, int *argv[]){
     //Sending data
     if(my_rank/root != 0){ //Sending Upwards
         for(int j=0;j<side_len;j++){
-            MPI_Pack (&data[0][j], 1, MPI_INT, buffer, side_len*4, &pos, MPI_COMM_WORLD);
+            MPI_Pack (&data[0][j], 1, MPI_INT, buffer, side_len*32, &pos, MPI_COMM_WORLD);
         }
-        MPI_Isend(buffer, pos,MPI_PACKED, my_rank-root,1,MPI_COMM_WORLD,&request[count++]);
-    }pos=0;
+        MPI_Isend(buffer, side_len*4,MPI_PACKED, my_rank-root,1,MPI_COMM_WORLD,&request[count++]);
+    }
     
     if(my_rank/(N - root) ==0){ //Sending Downwards
         for(int j=0;j<side_len;j++){
-            MPI_Pack (&data[side_len-1][j], 1, MPI_INT, buffer, side_len*4, &pos, MPI_COMM_WORLD);
+            MPI_Pack (&data[side_len-1][j], 1, MPI_INT, buffer, side_len*32, &pos, MPI_COMM_WORLD);
         }
-        MPI_Isend(&buffer[1][0], pos,MPI_PACKED, my_rank+root,2,MPI_COMM_WORLD,&request[count++]);
-    }pos=0;
+        MPI_Isend(buffer+side_len, side_len*4,MPI_PACKED, my_rank+root,2,MPI_COMM_WORLD,&request[count++]);
+    }
     
     if(my_rank%(root) != 0){ //Sending Leftwards
         for(int i=0;i<side_len;i++){
-            MPI_Pack (&data[i][0], 1, MPI_INT, buffer, side_len*4, &pos, MPI_COMM_WORLD);
+            MPI_Pack (&data[i][0], 1, MPI_INT, buffer, side_len*32, &pos, MPI_COMM_WORLD);
         }
-        MPI_Isend(&buffer[2][0], pos,MPI_PACKED, my_rank-1,3,MPI_COMM_WORLD,&request[count++]);
-    }pos=0;
+        MPI_Isend(buffer+side_len*2, side_len*4,MPI_PACKED, my_rank-1,3,MPI_COMM_WORLD,&request[count++]);
+    }
     
     if(my_rank%root != (root-1)){ //Sending Rightwards
         for(int i=0;i<side_len;i++){
-            MPI_Pack (&data[i][side_len-1], 1, MPI_INT, buffer, side_len*4, &pos, MPI_COMM_WORLD);
+            MPI_Pack (&data[i][side_len-1], 1, MPI_INT, buffer, side_len*32, &pos, MPI_COMM_WORLD);
         }
-        MPI_Isend(&buffer[3][0], pos,MPI_PACKED, my_rank+1,4,MPI_COMM_WORLD,&request[count++]);
-    }pos=0;
+        MPI_Isend(buffer+side_len*3, side_len*4,MPI_PACKED, my_rank+1,4,MPI_COMM_WORLD,&request[count++]);
+    }
 
     
-
+    int buf1[side_len], buf2[side_len], buf3[side_len], buf4[side_len]; 
     //Recieving Data
     if(my_rank/root != 0){ //Recieving from top
-        MPI_Irecv(&buffer[4][0], side_len, MPI_PACKED, my_rank-root,2,MPI_COMM_WORLD,&request[count++]);
-        for(int j=1;j<side_len+1;j++) recv_data[0][j] = buffer[4][j-1];
+        MPI_Irecv(buf1, side_len*4, MPI_PACKED, my_rank-root,2,MPI_COMM_WORLD,&request[count++]);
+        pos = 0;
+        MPI_Unpack(buf1, side_len*4, &pos, &recv_data[0][1], side_len, MPI_INT, MPI_COMM_WORLD);
     }
     
     if(my_rank/(N - root) ==0){ //Recieving from bottom
-        MPI_Irecv(&buffer[5][0], side_len, MPI_PACKED, my_rank+root,1,MPI_COMM_WORLD,&request[count++]);
-        for(int j=1;j<side_len+1;j++) recv_data[side_len][j] = buffer[5][j-1];
+        MPI_Irecv(buf2, side_len*4, MPI_PACKED, my_rank+root,1,MPI_COMM_WORLD,&request[count++]);
+        pos = 0;
+        MPI_Unpack(buf2, side_len*4, &pos, &recv_data[1][0], side_len, MPI_INT, MPI_COMM_WORLD);
     }
     
     if(my_rank%(root) != 0){ //Recieving from left
-        MPI_Irecv(&buffer[6][0], side_len, MPI_PACKED, my_rank-1,4,MPI_COMM_WORLD,&request[count++]);
-        for(int i=1;i<side_len+1;i++) recv_data[i][0] = buffer[6][i-1];
+        MPI_Irecv(buf3, side_len*4, MPI_PACKED, my_rank-1,4,MPI_COMM_WORLD,&request[count++]);
+        pos = 0;
+        MPI_Unpack(buf3, side_len*4, &pos, &recv_data[2][1], side_len, MPI_INT, MPI_COMM_WORLD);
     }
     
     if(my_rank%root != root-1){ //Recieving from right
-        MPI_Irecv(&buffer[7][0], side_len,MPI_PACKED, my_rank+1,3,MPI_COMM_WORLD,&request[count++]);
-        for(int i=1;i<side_len+1;i++) recv_data[i][side_len] = buffer[7][i-1];
+        MPI_Irecv(buf4, side_len*4,MPI_PACKED, my_rank+1,3,MPI_COMM_WORLD,&request[count++]);
+        pos = 0;
+        MPI_Unpack(buf4, side_len*4, &pos, &recv_data[3][1], side_len, MPI_INT, MPI_COMM_WORLD);
     }
-    for(int i=0;i<count;i++){
-        printf("rank = %d,status_count = %d,ERROR_Status = %d\n",my_rank,i,status[count].MPI_ERROR);
-    }
-    printf("rank = %d,status_count = %d\n",my_rank,count);
+
     MPI_Waitall(count, request, status);
 
     for(int i=0;i<side_len;i++){
@@ -108,7 +107,7 @@ int main(int argc, int *argv[]){
     ftime = MPI_Wtime();
     time = ftime - stime;
 
-    printf("%d\n",time);
+    printf("%lf\n",time);
 
 
     MPI_Finalize();
