@@ -3,8 +3,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 P = sys.argv[1]
-file = sys.argv[2]
-data = np.genfromtxt(file, dtype=None,  delimiter="\n")
+fileN = sys.argv[2]
+data = np.genfromtxt(fileN, dtype=None,  delimiter="\n")
 
 arr = np.reshape(data,(3,35))
 
