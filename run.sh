@@ -13,10 +13,10 @@ for execution in {1..5}
 do
 	for P in 16 36 49 64
     do
-        for N in 16*16 32*32 64*64 128*128 256*256 512*512 1024*1024
+	    for N in $((16*16)) $((32*32)) $((64*64)) $((128*128)) $((256*256)) $((512*512)) $((1024*1024))
         do  
             # printf "$P $N $1\n"
-            mpirun -np $P ./halo $N $1 >> data.txt
+            mpirun -np $P -f hostfile.txt ./halo $N $1 >> data.txt
         done
     done
 done
