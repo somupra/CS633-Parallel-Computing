@@ -2,6 +2,8 @@ import sys
 from matplotlib import pyplot as plt
 import numpy as np
 
+plt.ioff()
+
 file1 = sys.argv[1]
 file2 = sys.argv[2]
 file3 = sys.argv[3]
