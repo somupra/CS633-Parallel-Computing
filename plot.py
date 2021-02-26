@@ -24,9 +24,11 @@ for i in range(0,5):
         index += 1
 
 plt.figure(figsize=(15,15))
-plt.plot(range(1,8),[np.median(a) for a in arr0])
-plt.plot(range(1,8),[np.median(a) for a in arr1])
-plt.plot(range(1,8),[np.median(a) for a in arr2])
+plt.plot(range(1,8),[np.median(a) for a in arr0],"-b",label="Multiple Send Recieve")
+plt.plot(range(1,8),[np.median(a) for a in arr1],"-r",label="Pack Unpack Send Receive")
+plt.plot(range(1,8),[np.median(a) for a in arr2],"-g",label="Derived Data Send Recieve")
+plt.legend(loc="upper left")
+
 
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
@@ -52,9 +54,10 @@ for i in range(0,5):
         index += 1
 
 plt.figure(figsize=(15,15))
-plt.plot(range(1,8),[np.median(a) for a in arr0])
-plt.plot(range(1,8),[np.median(a) for a in arr1])
-plt.plot(range(1,8),[np.median(a) for a in arr2])
+plt.plot(range(1,8),[np.median(a) for a in arr0],"-b",label="Multiple Send Recieve")
+plt.plot(range(1,8),[np.median(a) for a in arr1],"-r",label="Pack Unpack Send Receive")
+plt.plot(range(1,8),[np.median(a) for a in arr2],"-g",label="Derived Data Send Recieve")
+plt.legend(loc="upper left")
 
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
@@ -80,9 +83,10 @@ for i in range(0,5):
         index += 1
 
 plt.figure(figsize=(15,15))
-plt.plot(range(1,8),[np.median(a) for a in arr0])
-plt.plot(range(1,8),[np.median(a) for a in arr1])
-plt.plot(range(1,8),[np.median(a) for a in arr2])
+plt.plot(range(1,8),[np.median(a) for a in arr0],"-b",label="Multiple Send Recieve")
+plt.plot(range(1,8),[np.median(a) for a in arr1],"-r",label="Pack Unpack Send Receive")
+plt.plot(range(1,8),[np.median(a) for a in arr2],"-g",label="Derived Data Send Recieve")
+plt.legend(loc="upper left")
 
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
@@ -108,9 +112,10 @@ for i in range(0,5):
         index += 1
 
 plt.figure(figsize=(15,15))
-plt.plot(range(1,8),[np.median(a) for a in arr0])
-plt.plot(range(1,8),[np.median(a) for a in arr1])
-plt.plot(range(1,8),[np.median(a) for a in arr2])
+plt.plot(range(1,8),[np.median(a) for a in arr0],"-b",label="Multiple Send Recieve")
+plt.plot(range(1,8),[np.median(a) for a in arr1],"-r",label="Pack Unpack Send Receive")
+plt.plot(range(1,8),[np.median(a) for a in arr2],"-g",label="Derived Data Send Recieve")
+plt.legend(loc="upper left")
 
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
