@@ -1,6 +1,6 @@
 CC=mpicc
-halo: src.o helper.o
-	$(CC) -o halo src.o helper.o -lm
+halo: src.o
+	$(CC) -o halo src.o -lm
 
 .PHONY: clean
 clean:

@@ -4,11 +4,128 @@
 #include<time.h>
 #include"mpi.h"
 
-int request_count=0;
-int can_transfer(char c, int rank, int cluster_len, int np);
-double* initialize_data(int n);
-void compute_stencil(double* data, int side_len);
-void compute_halo(double* data, double** recv, int side_len, int rank, int cluster_len, int p);
+int can_transfer(char c, int rank, int domain_side_len, int np){
+    if(c == 'u'){
+        if(rank < (int)(np/domain_side_len)) return 0;
+        else return 1;
+    }
+    else if(c == 'd'){
+        if(rank >= (np-domain_side_len)) return 0;
+        else return 1;
+    }
+    else if(c == 'l'){
+        if((rank+1) % domain_side_len == 1) return 0;
+        else return 1;
+    }
+    else if(c == 'r'){
+        if((rank+1) % domain_side_len == 0) return 0;
+        else return 1;
+    }
+}
+
+double* initialize_data(int n){
+    double* ptr = (double*) malloc((n*n) * sizeof(double*));
+
+    for(int i=0; i<n; i++){
+        for(int j=0; j<n; j++){
+            ptr[i*n + j] = (double)rand()/RAND_MAX;
+        }
+    }
+    return ptr;
+}
+
+
+void compute_stencil(double* data, int side_len){
+    for(int i=1; i<side_len-1; i++){
+        for(int j=1; j<side_len-1; j++){
+            int n = side_len;
+            data[i*n + j] = (data[(i-1)*n + j] + data[(i+1)*n + j] + data[i*n + j-1] + data[i*n + j+1])/4;
+        }
+    }
+    return;
+}
+
+void compute_halo(double* data, double** recv, int side_len, int rank, int domain_side_len, int p){
+    // for (0, 0)
+    int n=2;
+    double sum = data[0*side_len + 1] + data[1*side_len + 0]; 
+    if(can_transfer('u', rank, domain_side_len, p)) {
+        sum += recv[0][0];
+        n++;
+    }
+    if(can_transfer('l', rank, domain_side_len, p)) {
+        sum += recv[2][0];
+        n++;
+    }
+    data[0*side_len + 0] = sum/n;
+
+    // for (0, side_len-1)
+    n=2;
+    sum = data[0*side_len + side_len-2] + data[1*side_len + side_len-1];
+    if(can_transfer('u', rank, domain_side_len, p)) {
+        sum += recv[0][side_len-1];
+        n++;
+    }
+    if(can_transfer('r', rank, domain_side_len, p)) {
+        sum += recv[3][side_len-1];
+        n++;
+    }
+    data[0*side_len+side_len-1] = sum/n;
+
+    // for (side_len-1, 0)
+    n=2;
+    sum = data[(side_len-2)*side_len + 0]+ data[(side_len-1)*side_len + 1];
+    if(can_transfer('d', rank, domain_side_len, p)) {
+        sum += recv[3][0];
+        n++;
+    }
+    if(can_transfer('l', rank, domain_side_len, p)) {
+        sum += recv[2][side_len-1];
+        n++;
+    }
+    data[(side_len-1)*side_len + 0] = sum/n;
+
+    // for (0, side_len-1)
+    n=2;
+    sum = data[(side_len-1)*side_len + side_len-2] + data[(side_len-2)*side_len + side_len-1];
+    if(can_transfer('d', rank, domain_side_len, p)) {
+        sum += recv[1][side_len-1];
+        n++;
+    }
+    if(can_transfer('r', rank, domain_side_len, p)) {
+        sum += recv[3][side_len-1];
+        n++;
+    }
+    data[(side_len-1)*side_len + side_len-1] = sum/n;
+
+    for(int i=1; i<side_len-1; i++){
+        if(can_transfer('u', rank, domain_side_len, p)){
+            data[0*side_len + i] = (data[0*side_len + i-1] + data[0*side_len + i+1] + data[1*side_len + i] + recv[0][i])/4;
+        }else{
+            data[0*side_len + i] = (data[0*side_len + i-1] + data[0*side_len + i+1] + data[1*side_len + i])/3;
+        }
+
+        if(can_transfer('d', rank, domain_side_len, p)){
+            data[(side_len-1)*side_len + i] = (data[(side_len-1)*side_len + i-1] + data[(side_len-1)*side_len + i+1] + data[(side_len-2)*side_len + i] + recv[1][i])/4;
+        }else{
+            data[(side_len-1)*side_len + i] = (data[(side_len-1)*side_len + i-1] + data[(side_len-1)*side_len + i+1] + data[(side_len-2)*side_len + i])/3;
+        }
+
+        if(can_transfer('l', rank, domain_side_len, p)){
+            data[i*side_len + 0] = (data[(i+1)*side_len + 0] + data[(i-1)*side_len + 0] + data[i*side_len + 1] + recv[2][i])/4;
+        }else{
+            data[i*side_len + 0] = (data[(i+1)*side_len + 0] + data[(i-1)*side_len + 0] + data[i*side_len + 1])/3;
+        }
+
+        if(can_transfer('r', rank, domain_side_len, p)){
+            data[i*side_len + side_len-1] = (data[(i+1)*side_len + side_len-1] + data[(i-1)*side_len + side_len-1] + data[i*side_len + side_len-2] + recv[3][i])/4;
+        }else{
+            data[i*side_len + side_len-1] = (data[(i+1)*side_len + side_len-1] + data[(i-1)*side_len + side_len-1] + data[i*side_len + side_len-2])/3;
+        }
+    }
+    return;
+}
+
 
 int main(int argc, char *argv[]){
     srand(time(NULL));
@@ -259,7 +376,7 @@ int main(int argc, char *argv[]){
             MPI_Status st;
             MPI_Recv(recv_data[3], side_len, MPI_DOUBLE, source, 3, MPI_COMM_WORLD, &st);
         }
-
+        
         // Get the final averages for time t
         compute_halo(data, recv_data, side_len, my_rank, cluster_len, p);
     }
