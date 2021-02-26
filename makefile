@@ -4,4 +4,4 @@ halo: src.o
 
 .PHONY: clean
 clean:
-	rm -f *.o *.x *.out halo
+	rm -f *.o *.x *.out *.txt *.log halo comphosts hosts hostsimproved
