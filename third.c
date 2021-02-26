@@ -68,11 +68,13 @@ int main(int argc, int *argv[]){
 
     //Recieving Data
     if(my_rank/root != 0){ //Recieving from top
-        MPI_Irecv(&recv_data[0][1], 1, row_vector, my_rank-root,2,MPI_COMM_WORLD,&request[count++]);
+        MPI_Status st;
+        MPI_Recv(&recv_data[0][1], 1, row_vector, my_rank-root,2,MPI_COMM_WORLD,&st);
     }
     
     if(my_rank/(N - root) ==0){ //Recieving from bottom
-        MPI_Irecv(&recv_data[side_len][1], 1, row_vector, my_rank+root,1,MPI_COMM_WORLD,&request[count++]);
+        MPI_Status st;  
+        MPI_Recv(&recv_data[side_len][1], side_len, MPI_INT, my_rank+root,1,MPI_COMM_WORLD,&st);
     }
     
     if(my_rank%(root) != 0){ //Recieving from left
@@ -86,6 +88,11 @@ int main(int argc, int *argv[]){
 
     MPI_Waitall(count, request, status);
 
+    if(my_rank == 0){
+        printf("recv on rank %d\n", my_rank);
+        for(int i=1; i<side_len; i++) printf("%lf ", recv_data[side_len][i]);
+        printf("\n");
+    }
 
     for(int i=0;i<side_len;i++){
         for(int j=0;j<side_len;j++){
