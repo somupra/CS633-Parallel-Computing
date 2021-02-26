@@ -33,9 +33,6 @@ int main(int argc, char *argv[]){
     /***************************************************************************************************************************/
     double** data = initialize_data(side_len);
 
-    MPI_Status status[8*side_len];
-    MPI_Request request[8*side_len];
-
     double** recv_data = malloc(4*sizeof(double*));
     for(int i=0; i<4; i++){
         recv_data[i] = malloc(side_len*sizeof(double));
@@ -43,9 +40,6 @@ int main(int argc, char *argv[]){
 
     double stime = MPI_Wtime();
     for(int t=0; t<num_time_steps; t++){
-        // set request_count to zero, reuse the same request objects
-        request_count = 0;
-
         // Perform stencil computation
         compute_stencil(data, side_len);
 
@@ -53,57 +47,62 @@ int main(int argc, char *argv[]){
         if(can_transfer('u', my_rank, cluster_len, p)){
             int target = my_rank - cluster_len;
             for(int i=0; i<side_len; i++){
-                MPI_Isend(&data[0][i], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Send(&data[0][i], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD);
             }
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
             int target = my_rank + cluster_len;
             for(int i=0; i<side_len; i++){
-                MPI_Isend(&data[side_len-1][i], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Send(&data[side_len-1][i], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD);
             }
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
             int target = my_rank - 1;
             for(int i=0; i<side_len; i++){
-                MPI_Isend(&data[i][0], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Send(&data[i][0], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD);
             }
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
             int target = my_rank + 1;
             for(int i=0; i<side_len; i++){
-                MPI_Isend(&data[i][side_len-1], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Send(&data[i][side_len-1], 1, MPI_DOUBLE, target, i, MPI_COMM_WORLD);
             }
         }
 
         // If possible, then recieve the data in recv buffer (single double at a time)
         if(can_transfer('u', my_rank, cluster_len, p)){      
             int source = my_rank - cluster_len;
+            MPI_Status st;
             for(int i=0; i<side_len; i++){
-                MPI_Irecv(&recv_data[0][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Recv(&recv_data[0][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &st);
             }
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
             int source = my_rank + cluster_len;
+            MPI_Status st;
             for(int i=0; i<side_len; i++){
-                MPI_Irecv(&recv_data[1][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Recv(&recv_data[1][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &st);
             }
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
             int source = my_rank - 1;
+            MPI_Status st;
             for(int i=0; i<side_len; i++){
-                MPI_Irecv(&recv_data[2][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Recv(&recv_data[2][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &st);
             }
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
             int source = my_rank + 1;
+            MPI_Status st;
             for(int i=0; i<side_len; i++){
-                MPI_Irecv(&recv_data[3][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &request[request_count++]);
+                MPI_Recv(&recv_data[3][i], 1, MPI_DOUBLE, source, i, MPI_COMM_WORLD, &st);
             }
         }
-
-        // wait for all send to complete
-        MPI_Waitall(request_count, request, status);
-
+        if(my_rank == 0){
+            printf("\n Single double recv:");
+            for(int i=0; i<side_len; i++) printf(" %lf", recv_data[1][i]);
+            printf("\n");
+        }
         // Get the final averages for time t
         compute_halo(data, recv_data, side_len, my_rank, cluster_len, p);
     }
@@ -126,82 +125,82 @@ int main(int argc, char *argv[]){
     data = initialize_data(side_len);
 
     // buffers to unpack from 4 directions
-    double ubuf[side_len];
-    double dbuf[side_len];
-    double lbuf[side_len];
-    double rbuf[side_len];
+    double r_ubuf[side_len];
+    double r_dbuf[side_len];
+    double r_lbuf[side_len];
+    double r_rbuf[side_len];
 
     // buffer to store the pack to send
-    double buffer[4][side_len];
+    double s_ubuf[side_len];
+    double s_dbuf[side_len];
+    double s_lbuf[side_len];
+    double s_rbuf[side_len];
 
     stime = MPI_Wtime();
     for(int t=0; t<num_time_steps; t++){
-        // set request_count to zero, reuse the same request objects
-        request_count = 0;
 
         // Perform stencil computation
         compute_stencil(data, side_len);
 
-        // Send data packs in possible directions
-        int pos = 0;
-
         if(can_transfer('u', my_rank, cluster_len, p)){
-            int target = my_rank - cluster_len;
+            int target = my_rank - cluster_len, upos = 0;
             for(int j=0; j<side_len; j++){
-                MPI_Pack (&data[0][j], 1, MPI_DOUBLE, buffer, side_len*4*8, &pos, MPI_COMM_WORLD);
+                MPI_Pack (&data[0][j], 1, MPI_DOUBLE, s_ubuf, side_len*8, &upos, MPI_COMM_WORLD);
             }
-            MPI_Isend(buffer[0], side_len*8, MPI_PACKED, target, 1, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(s_ubuf, side_len*8, MPI_PACKED, target, 1, MPI_COMM_WORLD);
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
-            int target = my_rank + cluster_len;
+            int target = my_rank + cluster_len, dpos = 0;
             for(int j=0; j<side_len; j++){
-                MPI_Pack (&data[side_len-1][j], 1, MPI_DOUBLE, buffer, side_len*4*8, &pos, MPI_COMM_WORLD);
+                MPI_Pack (&data[side_len-1][j], 1, MPI_DOUBLE, s_dbuf, side_len*8, &dpos, MPI_COMM_WORLD);
             }
-            MPI_Isend(buffer[1], side_len*8, MPI_PACKED, target, 2, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(s_dbuf, side_len*8, MPI_PACKED, target, 2, MPI_COMM_WORLD);
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
-            int target = my_rank - 1;
+            int target = my_rank - 1, lpos = 0;
             for(int i=0; i<side_len; i++){
-                MPI_Pack (&data[i][0], 1, MPI_DOUBLE, buffer, side_len*4*8, &pos, MPI_COMM_WORLD);
+                MPI_Pack (&data[i][0], 1, MPI_DOUBLE, s_lbuf, side_len*8, &lpos, MPI_COMM_WORLD);
             }
-            MPI_Isend(buffer[2], side_len*8, MPI_PACKED, target, 3, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(s_lbuf, side_len*8, MPI_PACKED, target, 3, MPI_COMM_WORLD);
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
-            int target = my_rank + 1;
+            int target = my_rank + 1, rpos = 0;
             for(int i=0;i<side_len;i++){
-                MPI_Pack (&data[i][side_len-1], 1, MPI_DOUBLE, buffer, side_len*4*8, &pos, MPI_COMM_WORLD);
+                MPI_Pack (&data[i][side_len-1], 1, MPI_DOUBLE, s_rbuf, side_len*8, &rpos, MPI_COMM_WORLD);
             }
-            MPI_Isend(buffer[3], side_len*8, MPI_PACKED, target, 4, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(s_rbuf, side_len*8, MPI_PACKED, target, 4, MPI_COMM_WORLD);
         }
 
         // Recieve and unpack from possible directions
         if(can_transfer('u', my_rank, cluster_len, p)){      
             int source = my_rank - cluster_len, curr_pos = 0;
             MPI_Status st;
-            MPI_Recv(ubuf, side_len*8, MPI_PACKED, source, 2, MPI_COMM_WORLD, &st);
-            MPI_Unpack(ubuf, side_len*8, &curr_pos, recv_data[0], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
+            MPI_Recv(r_ubuf, side_len*8, MPI_PACKED, source, 2, MPI_COMM_WORLD, &st);
+            MPI_Unpack(r_ubuf, side_len*8, &curr_pos, recv_data[0], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
             int source = my_rank + cluster_len, curr_pos = 0;
             MPI_Status st;
-            MPI_Recv(dbuf, side_len*8, MPI_PACKED, source, 1, MPI_COMM_WORLD, &st);
-            MPI_Unpack(dbuf, side_len*8, &curr_pos, recv_data[1], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
+            MPI_Recv(r_dbuf, side_len*8, MPI_PACKED, source, 1, MPI_COMM_WORLD, &st);
+            MPI_Unpack(r_dbuf, side_len*8, &curr_pos, recv_data[1], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
             int source = my_rank - 1, curr_pos = 0;
             MPI_Status st;
-            MPI_Recv(lbuf, side_len*8, MPI_PACKED, source, 4, MPI_COMM_WORLD, &st);
-            MPI_Unpack(lbuf, side_len*8, &curr_pos, recv_data[2], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
+            MPI_Recv(r_lbuf, side_len*8, MPI_PACKED, source, 4, MPI_COMM_WORLD, &st);
+            MPI_Unpack(r_lbuf, side_len*8, &curr_pos, recv_data[2], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
             int source = my_rank + 1, curr_pos = 0;
             MPI_Status st;
-            MPI_Recv(rbuf, side_len*8, MPI_PACKED, source, 3, MPI_COMM_WORLD, &st);
-            MPI_Unpack(rbuf, side_len*8, &curr_pos, recv_data[3], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
+            MPI_Recv(r_rbuf, side_len*8, MPI_PACKED, source, 3, MPI_COMM_WORLD, &st);
+            MPI_Unpack(r_rbuf, side_len*8, &curr_pos, recv_data[3], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
+        }  
+        if(my_rank == 3){
+            printf("\n Pack recv:");
+            for(int i=0; i<side_len; i++) printf(" %lf", recv_data[2][i]);
+            printf("\n");
         }
-
-        // wait for all send to complete
-        MPI_Waitall(request_count, request, status);
 
         // Get the final averages for time t
         compute_halo(data, recv_data, side_len, my_rank, cluster_len, p);
@@ -230,8 +229,6 @@ int main(int argc, char *argv[]){
 
     stime = MPI_Wtime();
     for(int t=0; t<num_time_steps; t++){
-        // set request_count to zero, reuse the same request objects
-        request_count = 0;
 
         // Perform stencil computation
         compute_stencil(data, side_len);
@@ -239,42 +236,47 @@ int main(int argc, char *argv[]){
         // send the data in vectors in possible directions
         if(can_transfer('u', my_rank, cluster_len, p)){
             int target = my_rank - cluster_len;
-            MPI_Isend(data[0], 1, row_vector, target, 1, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(data[0], 1, row_vector, target, 1, MPI_COMM_WORLD);
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
             int target = my_rank + cluster_len;
-            MPI_Isend(data[side_len-1], 1, row_vector, target, 2, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(data[side_len-1], 1, row_vector, target, 2, MPI_COMM_WORLD);
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
             int target = my_rank - 1;
-            MPI_Isend(data, 1, col_vector, target, 3, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(data, 1, col_vector, target, 3, MPI_COMM_WORLD);
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
             int target = my_rank + 1;
-            MPI_Isend(&data[0][side_len-1], 1, col_vector, target, 4, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Send(&data[0][side_len-1], 1, col_vector, target, 4, MPI_COMM_WORLD);
         }
 
         // recieve from possible directions, for col recieve in MPI_DOUBLE datatype
         if(can_transfer('u', my_rank, cluster_len, p)){      
             int source = my_rank - cluster_len;
-            MPI_Irecv(recv_data[0], 1, row_vector, source, 2, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Status st;
+            MPI_Recv(recv_data[0], 1, row_vector, source, 2, MPI_COMM_WORLD, &st);
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
             int source = my_rank + cluster_len; 
-            MPI_Irecv(recv_data[1], 1, row_vector, source, 1, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Status st;
+            MPI_Recv(recv_data[1], 1, row_vector, source, 1, MPI_COMM_WORLD, &st);
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
             int source = my_rank - 1;
-            MPI_Irecv(recv_data[2], side_len, MPI_DOUBLE, source, 4, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Status st;
+            MPI_Recv(recv_data[2], side_len, MPI_DOUBLE, source, 4, MPI_COMM_WORLD, &st);
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
             int source = my_rank + 1;
-            MPI_Irecv(recv_data[3], side_len, MPI_DOUBLE, source, 3, MPI_COMM_WORLD, &request[request_count++]);
+            MPI_Status st;
+            MPI_Recv(recv_data[3], side_len, MPI_DOUBLE, source, 3, MPI_COMM_WORLD, &st);
         }
-
-        // wait for all send to complete
-        MPI_Waitall(request_count, request, status);
-
+        if(my_rank == 3){
+            printf("\n Vector recv:");
+            for(int i=0; i<side_len; i++) printf(" %lf", recv_data[2][i]);
+            printf("\n");
+        }
         // Get the final averages for time t
         compute_halo(data, recv_data, side_len, my_rank, cluster_len, p);
     }
