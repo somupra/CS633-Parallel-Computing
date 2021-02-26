@@ -12,7 +12,6 @@ plt.figure(figsize=(15,15))
 plt.boxplot([arr[:,0],arr[:,1],arr[:,2]])
 plt.xlabel("Method")
 plt.ylabel("Time(in seconds)")
-plt.show()
 if(P == 16):
     plt.title("Plot for P = 16")
     plt.savefig("plot1.png")
