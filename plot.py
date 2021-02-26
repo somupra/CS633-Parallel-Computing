@@ -1,10 +1,5 @@
-import matplotlib
-matplotlib.use('Agg')
-
 import sys
 from matplotlib import pyplot as plt
-
-
 import numpy as np
 
 file1 = sys.argv[1]
@@ -38,8 +33,9 @@ plt.legend(loc="upper left")
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr2,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
-plt.xlabel("Method")
+plt.xlabel("N")
 plt.ylabel("Time(in seconds)")
+plt.title("Plot for P = 16")
 plt.savefig("plot1.png")
 
 data = np.genfromtxt(file2, dtype=None,  delimiter="\n")
@@ -67,8 +63,9 @@ plt.legend(loc="upper left")
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr2,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
-plt.xlabel("Method")
+plt.xlabel("N")
 plt.ylabel("Time(in seconds)")
+plt.title("Plot for P = 36")
 plt.savefig("plot2.png")
 
 data = np.genfromtxt(file3, dtype=None,  delimiter="\n")
@@ -96,8 +93,9 @@ plt.legend(loc="upper left")
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr2,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
-plt.xlabel("Method")
+plt.xlabel("N")
 plt.ylabel("Time(in seconds)")
+plt.title("Plot for P = 49")
 plt.savefig("plot3.png")
 
 data = np.genfromtxt(file4, dtype=None,  delimiter="\n")
@@ -125,6 +123,7 @@ plt.legend(loc="upper left")
 plt.boxplot(arr0,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr1,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
 plt.boxplot(arr2,labels=[16*16,32*32,64*64,128*128,256*256,512*512,1024*1024])
-plt.xlabel("Method")
+plt.xlabel("N")
 plt.ylabel("Time(in seconds)")
+plt.title("Plot for P = 64")
 plt.savefig("plot4.png")
