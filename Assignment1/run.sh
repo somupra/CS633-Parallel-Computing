@@ -22,3 +22,6 @@ do
         ((i++))
     done
 done
+
+printf "data generated, now plotting..."
+python plot.py data1.txt data2.txt data3.txt data4.txt
