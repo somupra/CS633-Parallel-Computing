@@ -13,8 +13,8 @@ void compute_halo(double** data, double** recv, int side_len, int rank, int clus
 int main(int argc, char *argv[]){
     srand(time(NULL));
 
-    if(argc != 2){
-        printf("USAGE: halo [DATA POINTS PER PROCESS]\n");
+    if(argc != 3){
+        printf("USAGE: halo [DATA POINTS PER PROCESS][NUM TIME STEPS]\n");
         return -1;
     }
 
@@ -26,9 +26,11 @@ int main(int argc, char *argv[]){
     int data_points = atoi(argv[1]);
     int side_len = sqrt(data_points);
     int cluster_len = sqrt(p);
-    int num_time_steps = 50;
+    int num_time_steps = atoi(argv[2]);
 
-    
+    /***************************************************************************************************************************/
+    /*******************************************Transferring single double at a time********************************************/
+    /***************************************************************************************************************************/
     double** data = initialize_data(side_len);
 
     MPI_Status status[8*side_len];
@@ -113,18 +115,23 @@ int main(int argc, char *argv[]){
     MPI_Reduce (&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     if (!my_rank) printf ("%lf\n", maxTime);
 
-    /***************************************/
-    /* Using MPI_Pack */
+    /***************************************************************************************************************************/
+    /*****************************************USING MPI_Pack and MPI_Unpack for transfer****************************************/
+    /***************************************************************************************************************************/
     int n = side_len;
     while(n--) free(data[n]);
     free(data);
 
+    // re-init data
     data = initialize_data(side_len);
+
+    // buffers to unpack from 4 directions
     double ubuf[side_len];
     double dbuf[side_len];
     double lbuf[side_len];
     double rbuf[side_len];
 
+    // buffer to store the pack to send
     double buffer[4][side_len];
 
     stime = MPI_Wtime();
@@ -135,16 +142,11 @@ int main(int argc, char *argv[]){
         // Perform stencil computation
         compute_stencil(data, side_len);
 
-        // If possible, then send the data in pack, init pos here
+        // Send data packs in possible directions
         int pos = 0;
 
         if(can_transfer('u', my_rank, cluster_len, p)){
             int target = my_rank - cluster_len;
-            // if(my_rank == 2){
-            //     printf("sending to %d\n", target);
-            //     for(int i=0; i<side_len; i++) printf("%lf ", data[0][i]);
-            //     printf("\n");
-            // }
             for(int j=0; j<side_len; j++){
                 MPI_Pack (&data[0][j], 1, MPI_DOUBLE, buffer, side_len*4*8, &pos, MPI_COMM_WORLD);
             }
@@ -172,43 +174,35 @@ int main(int argc, char *argv[]){
             MPI_Isend(buffer[3], side_len*8, MPI_PACKED, target, 4, MPI_COMM_WORLD, &request[request_count++]);
         }
 
-        // If possible, then recieve the data in recv buffer unpacked
+        // Recieve and unpack from possible directions
         if(can_transfer('u', my_rank, cluster_len, p)){      
-            int source = my_rank - cluster_len;
-            MPI_Status st; int curr_pos=0;
+            int source = my_rank - cluster_len, curr_pos = 0;
+            MPI_Status st;
             MPI_Recv(ubuf, side_len*8, MPI_PACKED, source, 2, MPI_COMM_WORLD, &st);
             MPI_Unpack(ubuf, side_len*8, &curr_pos, recv_data[0], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
-            // MPI_Irecv(recv_data[0], side_len*8, MPI_PACKED, source, 2, MPI_COMM_WORLD, &request[request_count++]);
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
-            int source = my_rank + cluster_len;
-            MPI_Status st; int curr_pos=0;
+            int source = my_rank + cluster_len, curr_pos = 0;
+            MPI_Status st;
             MPI_Recv(dbuf, side_len*8, MPI_PACKED, source, 1, MPI_COMM_WORLD, &st);
             MPI_Unpack(dbuf, side_len*8, &curr_pos, recv_data[1], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
         }
         if(can_transfer('l', my_rank, cluster_len, p)){
-            int source = my_rank - 1;
-            MPI_Status st; int curr_pos=0;
+            int source = my_rank - 1, curr_pos = 0;
+            MPI_Status st;
             MPI_Recv(lbuf, side_len*8, MPI_PACKED, source, 4, MPI_COMM_WORLD, &st);
             MPI_Unpack(lbuf, side_len*8, &curr_pos, recv_data[2], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
-            // MPI_Irecv(recv_data[2], side_len*8, MPI_PACKED, source, 4, MPI_COMM_WORLD, &request[request_count++]);
         }
         if(can_transfer('r', my_rank, cluster_len, p)){
-            int source = my_rank + 1;
-            MPI_Status st; int curr_pos=0;
+            int source = my_rank + 1, curr_pos = 0;
+            MPI_Status st;
             MPI_Recv(rbuf, side_len*8, MPI_PACKED, source, 3, MPI_COMM_WORLD, &st);
             MPI_Unpack(rbuf, side_len*8, &curr_pos, recv_data[3], side_len, MPI_DOUBLE, MPI_COMM_WORLD);
-            // MPI_Irecv(recv_data[3], side_len*8, MPI_PACKED, source, 3, MPI_COMM_WORLD, &request[request_count++]);
         }
 
         // wait for all send to complete
         MPI_Waitall(request_count, request, status);
 
-        // if(can_transfer('d', my_rank, cluster_len, p) && my_rank == 0){
-        //     printf("recv on rank %d\n", my_rank);
-        //     for(int i=0; i<side_len; i++) printf("%lf ", recv_data[1][i]);
-        //     printf("\n");
-        // }
         // Get the final averages for time t
         compute_halo(data, recv_data, side_len, my_rank, cluster_len, p);
     }
@@ -219,12 +213,13 @@ int main(int argc, char *argv[]){
     if (!my_rank) printf ("%lf\n", maxTime);
 
     /***************************************************************************************************************************/
-    /***************************************USING VECTORS FOR ROW AND COLUMN TRANSFER*******************************************/
+    /*****************************************USING VECTORS FOR ROW AND COLUMN TRANSFER*****************************************/
     /***************************************************************************************************************************/
     n = side_len;
     while(n--) free(data[n]);
     free(data);
 
+    // re-init data
     data = initialize_data(side_len);
 
     MPI_Datatype row_vector, col_vector;
@@ -241,16 +236,9 @@ int main(int argc, char *argv[]){
         // Perform stencil computation
         compute_stencil(data, side_len);
 
-        // If possible, then send the data in pack, init pos here
-        int pos = 0;
-
+        // send the data in vectors in possible directions
         if(can_transfer('u', my_rank, cluster_len, p)){
             int target = my_rank - cluster_len;
-            // if(my_rank == 2){
-            //     printf("sending to %d\n", target);
-            //     for(int i=0; i<side_len; i++) printf("%lf ", data[0][i]);
-            //     printf("\n");
-            // }
             MPI_Isend(data[0], 1, row_vector, target, 1, MPI_COMM_WORLD, &request[request_count++]);
         }
         if(can_transfer('d', my_rank, cluster_len, p)){
@@ -266,7 +254,7 @@ int main(int argc, char *argv[]){
             MPI_Isend(&data[0][side_len-1], 1, col_vector, target, 4, MPI_COMM_WORLD, &request[request_count++]);
         }
 
-        // If possible, then recieve the data in recv buffer unpacked
+        // recieve from possible directions, for col recieve in MPI_DOUBLE datatype
         if(can_transfer('u', my_rank, cluster_len, p)){      
             int source = my_rank - cluster_len;
             MPI_Irecv(recv_data[0], 1, row_vector, source, 2, MPI_COMM_WORLD, &request[request_count++]);
@@ -286,12 +274,6 @@ int main(int argc, char *argv[]){
 
         // wait for all send to complete
         MPI_Waitall(request_count, request, status);
-
-        // if(can_transfer('d', my_rank, cluster_len, p) && my_rank == 0){
-        //     printf("recv on rank %d\n", my_rank);
-        //     for(int i=0; i<side_len; i++) printf("%lf ", recv_data[1][i]);
-        //     printf("\n");
-        // }
 
         // Get the final averages for time t
         compute_halo(data, recv_data, side_len, my_rank, cluster_len, p);
