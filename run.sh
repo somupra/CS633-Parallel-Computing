@@ -10,7 +10,7 @@ fi
 
 /users/btech/somupra/UGP/allocator/src/allocator.out 64 8 > dump.txt
 
-for execution in {1..2}
+for execution in {1..5}
 do  
     i=1
 	for P in 16 36 49 64
