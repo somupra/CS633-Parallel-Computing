@@ -21,6 +21,6 @@ do
 
             mpirun -np $P -f hostsimproved ./halo $N $1 >> data$i.txt
         done
-        ((i=i+1))
+        i++
     done
 done
